@@ -51,3 +51,28 @@ export const refreshRateLimiter = rateLimit({
     });
   },
 });
+
+/**
+ * Rate limiter for document uploads to prevent abuse and denial of service.
+ * Allows up to 20 uploads per 15 minutes per IP.
+ * Skipped in test environment.
+ */
+export const uploadRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: () => env.NODE_ENV === "test" || process.env.NODE_ENV === "test",
+  handler: (_req: Request, res: Response) => {
+    res.status(429).json({
+      success: false,
+      message: "Upload rate limit exceeded. Please wait a few minutes before uploading again.",
+      errors: [
+        {
+          field: "rateLimit",
+          message: "Too many file upload requests.",
+        },
+      ],
+    });
+  },
+});

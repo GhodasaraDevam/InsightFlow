@@ -57,6 +57,27 @@ const envSchema = z.object({
   COOKIE_SAME_SITE: z
     .enum(["lax", "strict", "none"])
     .default("lax"),
+
+  CLOUDINARY_CLOUD_NAME: z
+    .string()
+    .min(1, "CLOUDINARY_CLOUD_NAME is required")
+    .default(process.env.NODE_ENV === "test" ? "test_cloud_name" : "placeholder_cloud_name"),
+
+  CLOUDINARY_API_KEY: z
+    .string()
+    .min(1, "CLOUDINARY_API_KEY is required")
+    .default(process.env.NODE_ENV === "test" ? "test_api_key" : "placeholder_api_key"),
+
+  CLOUDINARY_API_SECRET: z
+    .string()
+    .min(1, "CLOUDINARY_API_SECRET is required")
+    .default(process.env.NODE_ENV === "test" ? "test_api_secret" : "placeholder_api_secret"),
+
+  MAX_UPLOAD_SIZE_BYTES: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(20 * 1024 * 1024),
 });
 
 const result = envSchema.safeParse(process.env);

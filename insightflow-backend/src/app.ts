@@ -5,6 +5,7 @@ import cookieParser from "cookie-parser";
 import { env } from "./config/env.js";
 import authRoutes from "./modules/auth/auth.routes.js";
 import userRoutes from "./modules/users/user.routes.js";
+import documentRoutes from "./modules/documents/document.routes.js";
 import { errorHandler } from "./middlewares/error-handler.middleware.js";
 
 const app = express();
@@ -41,9 +42,10 @@ app.get("/api/v1/health", (_req, res) => {
   });
 });
 
-// Authentication & User routes
+// Authentication, User & Document routes
 app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/users", userRoutes);
+app.use("/api/v1/documents", documentRoutes);
 
 // 404 Not Found handler
 app.use((_req, res) => {

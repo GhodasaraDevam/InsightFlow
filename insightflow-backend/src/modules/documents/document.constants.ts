@@ -17,6 +17,7 @@ export const StorageProvider = {
   LOCAL: "local",
   GCS: "gcs",
   S3: "s3",
+  CLOUDINARY: "cloudinary",
 } as const;
 
 export type StorageProvider = (typeof StorageProvider)[keyof typeof StorageProvider];

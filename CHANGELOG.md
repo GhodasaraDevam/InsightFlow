@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-11-06
+
+### Added - Milestone 3: Document Upload & Cloudinary Storage
+- **Cloudinary Authenticated Storage**: Integrated official Cloudinary SDK v2 with authenticated raw delivery (`resource_type: raw`, `type: authenticated`).
+- **Multipart Document Upload**: `POST /api/v1/documents/upload` supporting PDF and DOCX files up to 20 MB with rate limiting.
+- **Deep File Content Validation**: Byte-level validation for PDF (`%PDF-` header and `%%EOF` trailer) and DOCX (OPC ZIP packaging, `[Content_Types].xml`, and WordprocessingML schemas).
+- **Zip-Bomb Decompression Protection**: Enforced 2 MB ceiling (`MAX_DECOMPRESSED_ENTRY_BYTES`) on XML decompression during DOCX validation.
+- **Server-Controlled Public IDs**: Cryptographically random UUID identifiers preserving file extensions.
+- **Cryptographic Integrity**: SHA-256 checksums calculated and persisted for uploaded documents.
+- **Compensating Rollback**: Automatic Cloudinary asset destruction if MongoDB metadata persistence fails.
+- **Multi-Tenant Document Management**:
+  - `GET /api/v1/documents`: User-isolated listing with pagination, sorting, and processing status filtering.
+  - `GET /api/v1/documents/:id`: Document details retrieval scoped to authenticated user and active state.
+  - `GET /api/v1/documents/:id/download`: Authorized signed download URLs with 5-minute expiry and smart extension resolution.
+  - `DELETE /api/v1/documents/:id`: Cloudinary asset destruction and MongoDB soft deletion (`isDeleted: true`).
+- **Processing Job Scheduling**: Enqueues queued `full_processing` jobs in `processing_jobs` collection upon document creation.
+- **Automated Test Suite**: 34 automated tests (63 total across backend) covering uploads, validation, download signing, soft deletion, and error recovery.
+
 ## [1.1.0] - 2026-11-06
 
 ### Added - Milestone 2: Authentication & Authorization System

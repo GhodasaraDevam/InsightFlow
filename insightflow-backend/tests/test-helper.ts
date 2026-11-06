@@ -2,6 +2,8 @@ import mongoose from "mongoose";
 import { env } from "../src/config/env.js";
 import { User } from "../src/modules/users/user.model.js";
 import { Session } from "../src/modules/sessions/session.model.js";
+import { DocumentModel } from "../src/modules/documents/document.model.js";
+import { ProcessingJob } from "../src/modules/processing-jobs/processing-job.model.js";
 
 export const connectTestDb = async (): Promise<void> => {
   if (mongoose.connection.readyState === 0) {
@@ -19,6 +21,8 @@ export const cleanupTestData = async (emailPattern: RegExp | string): Promise<vo
   const users = await User.find({ email: emailPattern });
   const userIds = users.map((u) => u._id);
   if (userIds.length > 0) {
+    await ProcessingJob.deleteMany({ userId: { $in: userIds } });
+    await DocumentModel.deleteMany({ userId: { $in: userIds } });
     await Session.deleteMany({ userId: { $in: userIds } });
     await User.deleteMany({ _id: { $in: userIds } });
   }
