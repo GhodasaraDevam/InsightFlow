@@ -1,0 +1,43 @@
+
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+
+# Build output
+dist/
+build/
+coverage/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Local uploads and storage
+storage/
+uploads/
+temp/
+
+# IDE
+.vscode/
+.idea/
+.DS_Store
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test output
+.nyc_output/
+playwright-report/
+test-results/
+
+# Local databases and backups
+*.sqlite
+*.db
+*.dump
+*.backup
