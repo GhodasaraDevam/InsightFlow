@@ -10,6 +10,7 @@ export interface ISession {
   _id: Types.ObjectId;
   userId: Types.ObjectId;
   refreshTokenHash: string;
+  consumedTokenHashes?: string[];
   deviceInfo?: DeviceInfo;
   ipAddress?: string;
   userAgent?: string;

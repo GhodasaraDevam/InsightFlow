@@ -78,6 +78,11 @@ const userSchema = new Schema<IUserDocument>(
       type: userPreferencesSchema,
       default: () => ({}),
     },
+    tokenVersion: {
+      type: Number,
+      default: 0,
+      select: false,
+    },
   },
   {
     timestamps: true,
@@ -85,6 +90,7 @@ const userSchema = new Schema<IUserDocument>(
     toJSON: {
       transform(_doc, ret: Record<string, unknown>) {
         delete ret.passwordHash;
+        delete ret.tokenVersion;
         delete ret.__v;
         return ret;
       },
@@ -92,6 +98,7 @@ const userSchema = new Schema<IUserDocument>(
     toObject: {
       transform(_doc, ret: Record<string, unknown>) {
         delete ret.passwordHash;
+        delete ret.tokenVersion;
         delete ret.__v;
         return ret;
       },

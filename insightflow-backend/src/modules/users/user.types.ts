@@ -19,6 +19,7 @@ export interface IUser {
   emailVerifiedAt?: Date;
   lastLoginAt?: Date;
   preferences: UserPreferences;
+  tokenVersion?: number;
   createdAt: Date;
   updatedAt: Date;
 }
