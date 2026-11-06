@@ -1,15 +1,12 @@
 # InsightFlow — API Contract
 
-> **Version:** 1.0.0
-> **Phase:** Database Architecture and Data Model Implementation
+> **Version:** 2.0.0
+> **Phase:** Milestone 2 — Complete Authentication & Authorization System
 > **Last Updated:** 2026-11-06
 
 ## Overview
 
-This document defines the planned API resource structure for InsightFlow. It serves as a forward-looking contract for frontend and backend development teams.
-
-> [!IMPORTANT]
-> **Only the health endpoint is currently implemented.** All other endpoints listed below are planned for subsequent development phases and are **not yet functional**. Do not attempt to call them.
+This document specifies the REST API contract for InsightFlow. Milestone 2 provides full user authentication, session management, secure cookie rotation, role-based authorization, and user profile management.
 
 ---
 
@@ -19,12 +16,9 @@ This document defines the planned API resource structure for InsightFlow. It ser
 http://localhost:5000/api/v1
 ```
 
-## Response Format
-
-All responses follow a consistent JSON structure:
+## Standard Response Format
 
 ### Success Response
-
 ```json
 {
   "success": true,
@@ -33,26 +27,7 @@ All responses follow a consistent JSON structure:
 }
 ```
 
-### Paginated Response
-
-```json
-{
-  "success": true,
-  "message": "Descriptive success message",
-  "data": [ ],
-  "pagination": {
-    "page": 1,
-    "limit": 20,
-    "total": 100,
-    "totalPages": 5,
-    "hasNextPage": true,
-    "hasPreviousPage": false
-  }
-}
-```
-
 ### Error Response
-
 ```json
 {
   "success": false,
@@ -60,7 +35,7 @@ All responses follow a consistent JSON structure:
   "errors": [
     {
       "field": "email",
-      "message": "Email is required"
+      "message": "Please provide a valid email address"
     }
   ]
 }
@@ -68,16 +43,15 @@ All responses follow a consistent JSON structure:
 
 ---
 
-## Implemented Endpoints
+## Implemented Endpoints (Milestone 2)
 
-### Health Check
+### 1. Health Check
 
 | Method | Path | Auth | Description |
 |---|---|---|---|
-| `GET` | `/api/v1/health` | None | Application health status |
+| `GET` | `/health` | None | Application health status |
 
-**Response:**
-
+**Response (200 OK):**
 ```json
 {
   "success": true,
@@ -91,122 +65,327 @@ All responses follow a consistent JSON structure:
 
 ---
 
-## Planned Resource Structure
-
-The following resources correspond to the database collections implemented in this phase. Endpoints will be built in subsequent milestones.
-
-### Authentication (Phase 2 — Next)
+### 2. User Registration
 
 | Method | Path | Auth | Description |
 |---|---|---|---|
-| `POST` | `/api/v1/auth/register` | None | Register new user |
-| `POST` | `/api/v1/auth/login` | None | Login and receive tokens |
-| `POST` | `/api/v1/auth/refresh` | Refresh Token | Refresh access token |
-| `POST` | `/api/v1/auth/logout` | Access Token | Revoke current session |
-| `POST` | `/api/v1/auth/logout-all` | Access Token | Revoke all user sessions |
+| `POST` | `/auth/register` | None (Rate Limited) | Register a new user account |
 
-### Users (Phase 2+)
+**Request Body:**
+```json
+{
+  "fullName": "John Doe",
+  "email": "john@example.com",
+  "password": "StrongPassword123!"
+}
+```
+
+**Validation Rules:**
+- `fullName`: String (1-200 characters), trimmed.
+- `email`: Valid email format, normalized to lowercase.
+- `password`: String (8-128 characters), must contain at least 1 uppercase letter, 1 lowercase letter, 1 number, and 1 special character.
+
+**Response (201 Created):**
+```json
+{
+  "success": true,
+  "message": "User registered successfully",
+  "data": {
+    "user": {
+      "id": "6aedb140f89290a8872f3704",
+      "fullName": "John Doe",
+      "email": "john@example.com",
+      "role": "user",
+      "accountStatus": "active",
+      "isEmailVerified": false,
+      "preferences": {
+        "theme": "system",
+        "language": "en",
+        "notificationsEnabled": true
+      },
+      "createdAt": "2026-11-06T10:00:00.000Z"
+    }
+  }
+}
+```
+
+**Common Error Codes:**
+- `400 Bad Request`: Validation failure (weak password, invalid email).
+- `409 Conflict`: Email is already registered.
+- `429 Too Many Requests`: Rate limit exceeded.
+
+---
+
+### 3. User Login
 
 | Method | Path | Auth | Description |
 |---|---|---|---|
-| `GET` | `/api/v1/users/me` | Access Token | Get current user profile |
-| `PATCH` | `/api/v1/users/me` | Access Token | Update current user profile |
-| `PATCH` | `/api/v1/users/me/password` | Access Token | Change password |
-| `DELETE` | `/api/v1/users/me` | Access Token | Delete (soft) own account |
+| `POST` | `/auth/login` | None (Rate Limited) | Authenticate user credentials and create session |
+
+**Request Body:**
+```json
+{
+  "email": "john@example.com",
+  "password": "StrongPassword123!"
+}
+```
+
+**Response (200 OK):**
+- **Set-Cookie Header:** `refreshToken=<jwt>; Path=/api/v1/auth; HttpOnly; SameSite=Lax`
+- **Body:**
+```json
+{
+  "success": true,
+  "message": "Login successful",
+  "data": {
+    "user": {
+      "id": "6aedb140f89290a8872f3704",
+      "fullName": "John Doe",
+      "email": "john@example.com",
+      "role": "user",
+      "accountStatus": "active",
+      "isEmailVerified": false,
+      "preferences": {
+        "theme": "system",
+        "language": "en",
+        "notificationsEnabled": true
+      },
+      "createdAt": "2026-11-06T10:00:00.000Z",
+      "lastLoginAt": "2026-11-06T10:05:00.000Z"
+    },
+    "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+  }
+}
+```
+
+**Common Error Codes:**
+- `401 Unauthorized`: Generic "Invalid email or password" (protects against account enumeration).
+- `403 Forbidden`: Account suspended or deleted.
+- `429 Too Many Requests`: Rate limit exceeded (>10 requests in 15 minutes).
+
+---
+
+### 4. Refresh Access Token
+
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| `POST` | `/auth/refresh` | `refreshToken` Cookie | Atomically rotate refresh token and issue new access token |
+
+**Headers:**
+- `Origin`: Valid frontend origin (anti-CSRF).
+- `X-Requested-With`: `XMLHttpRequest` (or JSON Content-Type).
+
+**Response (200 OK):**
+- **Set-Cookie Header:** Rotated `refreshToken=<new-jwt>; Path=/api/v1/auth; HttpOnly; SameSite=Lax`
+- **Body:**
+```json
+{
+  "success": true,
+  "message": "Token refreshed successfully",
+  "data": {
+    "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+  }
+}
+```
+
+**Common Error Codes:**
+- `401 Unauthorized`: Missing cookie, expired token, revoked session, or token reuse detected.
+- `403 Forbidden`: Cross-Site Request Forgery (CSRF) origin mismatch.
+- `429 Too Many Requests`: Refresh rate limit exceeded (>30 requests in 15 minutes).
+
+---
+
+### 5. Logout
+
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| `POST` | `/auth/logout` | Bearer Access Token | Revoke current session and clear refresh cookie |
+
+**Headers:**
+- `Authorization`: `Bearer <accessToken>`
+
+**Response (200 OK):**
+- **Set-Cookie Header:** Cleared `refreshToken=; Path=/api/v1/auth; Max-Age=0`
+- **Body:**
+```json
+{
+  "success": true,
+  "message": "Logged out successfully"
+}
+```
+
+---
+
+### 6. Logout From All Devices
+
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| `POST` | `/auth/logout-all` | Bearer Access Token | Revoke all user sessions, increment tokenVersion, and clear cookie |
+
+**Headers:**
+- `Authorization`: `Bearer <accessToken>`
+
+**Response (200 OK):**
+- **Set-Cookie Header:** Cleared `refreshToken=; Path=/api/v1/auth; Max-Age=0`
+- **Body:**
+```json
+{
+  "success": true,
+  "message": "Logged out from all devices successfully"
+}
+```
+
+---
+
+### 7. Get Current User Profile
+
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| `GET` | `/users/me` | Bearer Access Token | Retrieve current authenticated user profile |
+
+**Headers:**
+- `Authorization`: `Bearer <accessToken>`
+
+**Response (200 OK):**
+```json
+{
+  "success": true,
+  "message": "Profile retrieved successfully",
+  "data": {
+    "id": "6aedb140f89290a8872f3704",
+    "fullName": "John Doe",
+    "email": "john@example.com",
+    "role": "user",
+    "accountStatus": "active",
+    "isEmailVerified": false,
+    "profilePicture": "https://example.com/avatar.jpg",
+    "preferences": {
+      "theme": "dark",
+      "language": "en",
+      "notificationsEnabled": true
+    },
+    "createdAt": "2026-11-06T10:00:00.000Z",
+    "lastLoginAt": "2026-11-06T10:05:00.000Z"
+  }
+}
+```
+
+---
+
+### 8. Update Current User Profile
+
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| `PATCH` | `/users/me` | Bearer Access Token | Update allowed profile fields |
+
+**Headers:**
+- `Authorization`: `Bearer <accessToken>`
+- `Content-Type`: `application/json`
+
+**Request Body (Partial):**
+```json
+{
+  "fullName": "Johnathan Doe",
+  "profilePicture": "https://example.com/avatar2.jpg",
+  "preferences": {
+    "theme": "light",
+    "notificationsEnabled": false
+  }
+}
+```
+
+**Restricted Fields (Strictly Rejected with 400 Bad Request):**
+`role`, `accountStatus`, `passwordHash`, `isEmailVerified`, `emailVerifiedAt`, `tokenVersion`.
+
+**Response (200 OK):**
+```json
+{
+  "success": true,
+  "message": "Profile updated successfully",
+  "data": {
+    "id": "6aedb140f89290a8872f3704",
+    "fullName": "Johnathan Doe",
+    "email": "john@example.com",
+    "role": "user",
+    "accountStatus": "active",
+    "isEmailVerified": false,
+    "profilePicture": "https://example.com/avatar2.jpg",
+    "preferences": {
+      "theme": "light",
+      "language": "en",
+      "notificationsEnabled": false
+    },
+    "createdAt": "2026-11-06T10:00:00.000Z",
+    "lastLoginAt": "2026-11-06T10:05:00.000Z"
+  }
+}
+```
+
+---
+
+### 9. Change Password
+
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| `POST` | `/users/change-password` | Bearer Access Token | Change password, revoke all existing sessions |
+| `PATCH` | `/users/me/password` | Bearer Access Token | Alias to change-password |
+
+**Headers:**
+- `Authorization`: `Bearer <accessToken>`
+- `Content-Type`: `application/json`
+
+**Request Body:**
+```json
+{
+  "currentPassword": "StrongPassword123!",
+  "newPassword": "NewStrongPassword456!"
+}
+```
+
+**Validation & Security Rules:**
+- `newPassword` must satisfy password complexity requirements.
+- `newPassword` cannot be identical to `currentPassword`.
+- On success, all active sessions in MongoDB are revoked (`revokedAt = now`).
+- User `tokenVersion` is incremented to instantly invalidate existing access tokens.
+- Refresh cookie is cleared.
+
+**Response (200 OK):**
+```json
+{
+  "success": true,
+  "message": "Password changed successfully. All other sessions have been revoked. Please log in again."
+}
+```
+
+---
+
+## Planned Resource Structure (Subsequent Milestones)
 
 ### Documents (Phase 3)
-
 | Method | Path | Auth | Description |
 |---|---|---|---|
-| `POST` | `/api/v1/documents` | Access Token | Upload a document |
-| `GET` | `/api/v1/documents` | Access Token | List user's documents (paginated) |
-| `GET` | `/api/v1/documents/:id` | Access Token | Get document details |
-| `PATCH` | `/api/v1/documents/:id` | Access Token | Update document metadata |
-| `DELETE` | `/api/v1/documents/:id` | Access Token | Soft-delete a document |
-| `GET` | `/api/v1/documents/:id/status` | Access Token | Get processing status |
+| `POST` | `/documents` | Access Token | Upload a document |
+| `GET` | `/documents` | Access Token | List user's documents (paginated) |
+| `GET` | `/documents/:id` | Access Token | Get document details |
+| `PATCH` | `/documents/:id` | Access Token | Update document metadata |
+| `DELETE` | `/documents/:id` | Access Token | Soft-delete a document |
+| `GET` | `/documents/:id/status` | Access Token | Get processing status |
 
 ### Document Chunks (Internal / Phase 4)
-
 | Method | Path | Auth | Description |
 |---|---|---|---|
-| `GET` | `/api/v1/documents/:id/chunks` | Access Token | List chunks for a document |
-
-> Chunks are primarily managed internally during document processing. Direct CRUD operations on chunks are not planned for the public API.
+| `GET` | `/documents/:id/chunks` | Access Token | List chunks for a document |
 
 ### Conversations (Phase 5)
-
 | Method | Path | Auth | Description |
 |---|---|---|---|
-| `POST` | `/api/v1/conversations` | Access Token | Create a conversation |
-| `GET` | `/api/v1/conversations` | Access Token | List user's conversations (paginated) |
-| `GET` | `/api/v1/conversations/:id` | Access Token | Get conversation details |
-| `PATCH` | `/api/v1/conversations/:id` | Access Token | Update conversation (title, archive) |
-| `DELETE` | `/api/v1/conversations/:id` | Access Token | Delete a conversation |
+| `POST` | `/conversations` | Access Token | Create a conversation |
+| `GET` | `/conversations` | Access Token | List conversations |
+| `GET` | `/conversations/:id` | Access Token | Get conversation thread |
+| `DELETE` | `/conversations/:id` | Access Token | Delete conversation |
 
 ### Messages (Phase 5)
-
 | Method | Path | Auth | Description |
 |---|---|---|---|
-| `POST` | `/api/v1/conversations/:id/messages` | Access Token | Send a message (triggers AI response) |
-| `GET` | `/api/v1/conversations/:id/messages` | Access Token | List messages in conversation (paginated) |
-
-### Search (Phase 6)
-
-| Method | Path | Auth | Description |
-|---|---|---|---|
-| `POST` | `/api/v1/search` | Access Token | Semantic search across user's documents |
-
-### Processing Jobs (Internal / Phase 3–4)
-
-| Method | Path | Auth | Description |
-|---|---|---|---|
-| `GET` | `/api/v1/processing-jobs` | Access Token | List user's processing jobs |
-| `GET` | `/api/v1/processing-jobs/:id` | Access Token | Get job status and progress |
-
-> Processing jobs are primarily managed by the backend worker system. The API provides read-only access for status monitoring.
-
----
-
-## Authentication Scheme (Planned)
-
-- **Access Tokens:** Short-lived JWTs sent in the `Authorization: Bearer <token>` header.
-- **Refresh Tokens:** Long-lived tokens sent via HTTP-only secure cookies or request body.
-- **Session Management:** Server-side session records in the `sessions` collection, with hashed refresh tokens and TTL auto-expiry.
-
----
-
-## Common Query Parameters (Planned)
-
-| Parameter | Type | Default | Description |
-|---|---|---|---|
-| `page` | integer | 1 | Page number for pagination |
-| `limit` | integer | 20 | Items per page (max 100) |
-| `sort` | string | varies | Sort field and direction |
-
----
-
-## HTTP Status Codes
-
-| Code | Meaning |
-|---|---|
-| `200` | OK — Successful request |
-| `201` | Created — Resource created |
-| `400` | Bad Request — Validation error |
-| `401` | Unauthorized — Missing or invalid token |
-| `403` | Forbidden — Insufficient permissions |
-| `404` | Not Found — Resource not found |
-| `409` | Conflict — Duplicate resource |
-| `413` | Payload Too Large — File exceeds size limit |
-| `422` | Unprocessable Entity — Semantic validation failure |
-| `429` | Too Many Requests — Rate limit exceeded |
-| `500` | Internal Server Error |
-
----
-
-## Notes
-
-- All endpoints that return user data will **never** include `passwordHash` or `refreshTokenHash`.
-- All user-owned resources are scoped by the authenticated user's ID (injected by middleware, never from request body).
-- File uploads will use `multipart/form-data`; all other requests use `application/json`.
-- Phase numbers are indicative of implementation order, not release versions.
-
+| `POST` | `/conversations/:id/messages` | Access Token | Send message and receive AI response |
+| `GET` | `/conversations/:id/messages` | Access Token | Retrieve message history |

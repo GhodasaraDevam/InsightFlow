@@ -22,6 +22,11 @@ const sessionSchema = new Schema<ISessionDocument>(
       required: [true, "Refresh token hash is required"],
       select: false,
     },
+    consumedTokenHashes: {
+      type: [String],
+      default: [],
+      select: false,
+    },
     deviceInfo: {
       type: deviceInfoSchema,
       default: undefined,
