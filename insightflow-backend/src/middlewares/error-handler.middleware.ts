@@ -1,4 +1,5 @@
 import type { Request, Response, NextFunction } from "express";
+import multer from "multer";
 import { ZodError } from "zod";
 import { AppError } from "../utils/app-error.util.js";
 import { env } from "../config/env.js";
@@ -15,6 +16,23 @@ export const errorHandler = (
       success: false,
       message: err.message,
       errors: err.errors || [],
+    });
+    return;
+  }
+
+  // Multer upload errors
+  if (err instanceof multer.MulterError) {
+    let message = "File upload failed";
+    if (err.code === "LIMIT_FILE_SIZE") {
+      const maxMb = Math.round(env.MAX_UPLOAD_SIZE_BYTES / (1024 * 1024));
+      message = `File exceeds maximum permitted size of ${maxMb}MB`;
+    } else if (err.code === "LIMIT_FILE_COUNT" || err.code === "LIMIT_UNEXPECTED_FILE") {
+      message = `Invalid upload request: ${err.message}`;
+    }
+    res.status(400).json({
+      success: false,
+      message,
+      errors: [{ field: err.field || "file", message: err.message }],
     });
     return;
   }

@@ -1,11 +1,22 @@
 import type { Document, Types } from "mongoose";
 import type { ProcessingStatus, StorageProvider, AllowedMimeType } from "./document.constants.js";
 
+export interface CloudinaryAssetMetadata {
+  assetId?: string;
+  publicId?: string;
+  resourceType?: string;
+  deliveryType?: string;
+  format?: string;
+  bytes?: number;
+  version?: number;
+}
+
 export interface DocumentMetadata {
   title?: string;
   author?: string;
   subject?: string;
   language?: string;
+  cloudinary?: CloudinaryAssetMetadata;
   [key: string]: unknown;
 }
 

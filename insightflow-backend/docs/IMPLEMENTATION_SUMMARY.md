@@ -1,159 +1,167 @@
 # InsightFlow — Implementation Summary
 
-> **Document Type:** Project Development Milestone Report
-> **Audience:** Lead Backend Architect, External Reviewers, Technical Stakeholders
-> **Repository:** `InsightFlow/insightflow-backend`
-> **Current Branch:** `feature/backend-auth`
-> **Implementation Date:** 2026-11-06
+> **Document Type:** Project Development Milestone Report  
+> **Audience:** Lead Backend Architect, External Reviewers, Technical Stakeholders  
+> **Repository:** `InsightFlow/insightflow-backend`  
+> **Current Branch:** `feature/backend-auth`  
+> **Implementation Date:** 2026-11-06  
 
 ---
 
-## A. Milestone 2 Status
+## 1. Milestone 3 Status & Completion Overview
 
-- **Milestone:** Milestone 2 — Complete Authentication & Authorization System
-- **Overall Completion Status:** **100% Complete & Production-Ready**
-  - Robust user registration with Zod validation, email normalization, and bcrypt password hashing (12 rounds).
-  - Secure login with constant-time dummy hash verification (mitigating timing attacks) and rate limiting.
-  - Dual JWT architecture: short-lived access token (~15m) and long-lived refresh token (~7d).
-  - Refresh-token reuse detection via a secure token-family strategy with `consumedTokenHashes` tracking.
-  - Concurrency-safe atomic database rotation using single-document `findOneAndUpdate` predicates without requiring MongoDB distributed transactions.
-  - Instant session revocation via hybrid User `tokenVersion` and in-memory TTL `RevokedSessionRegistry`.
-  - Secure HttpOnly cookies with configurable domain, path scoping (`/api/v1/auth`), and SameSite protection.
-  - CSRF origin and header validation for cookie-authenticated endpoints.
-  - Current user profile endpoint (`GET /api/v1/users/me`) and controlled profile updates (`PATCH /api/v1/users/me`).
-  - Change password flow (`POST /api/v1/users/change-password`) with session revocation.
-  - Comprehensive automated test suite passing 29/29 tests across 13 test suites with 0 failures.
-  - TypeScript strict compilation and production build verified cleanly with 0 errors.
+- **Milestone:** Milestone 3 — Document Upload & Cloudinary Storage
+- **Current Status:** **Implementation complete — pending live Cloudinary integration verification and final acceptance.**
+- **Verification Note:** All 63 automated tests pass with 0 failures using an isolated test database and isolated Cloudinary service mocks. Mocked tests demonstrate contract and error-handling correctness, but do not prove live Cloudinary network upload, download, or asset destruction against production Cloudinary infrastructure. Final acceptance requires smoke testing with live Cloudinary credentials.
 
----
-
-## B. Changes Made in Milestone 2
-
-### 1. Files Created (15 files)
-
-#### Utilities (`src/utils/`)
-- **`src/utils/app-error.util.ts`**: Standardized operational error class with HTTP status code and structured field errors.
-- **`src/utils/password.util.ts`**: Secure password hashing (`bcrypt` 12 rounds) and timing-safe password comparison.
-- **`src/utils/crypto.util.ts`**: High-entropy SHA-256 token hashing and secure UUIDv4 generation.
-- **`src/utils/jwt.util.ts`**: Access token and refresh token signing and verification with dedicated secrets, expiry, issuer, and audience validation.
-- **`src/utils/cookie.util.ts`**: Centralized HttpOnly cookie options, path scoping (`/api/v1/auth`), setting, and clearing.
-- **`src/utils/token-cache.util.ts`**: In-memory TTL `RevokedSessionRegistry` providing instantaneous O(1) revocation checks for the duration of the access token lifetime.
-
-#### Middlewares (`src/middlewares/`)
-- **`src/middlewares/authenticate.middleware.ts`**: Bearer token parsing, signature verification, revoked registry check, user identity check, account status check, and `tokenVersion` validation.
-- **`src/middlewares/authorize.middleware.ts`**: Role-based access control (`requireRole(...allowedRoles)`).
-- **`src/middlewares/error-handler.middleware.ts`**: Centralized error handling converting `AppError`, Zod validation errors, and MongoDB duplicate keys into consistent JSON responses without leaking stack traces.
-- **`src/middlewares/rate-limit.middleware.ts`**: IP rate limiting (10 requests / 15m on login/register; 30 requests / 15m on refresh).
-- **`src/middlewares/csrf.middleware.ts`**: Anti-CSRF verification enforcing trusted `FRONTEND_URL` origin and custom header checks on cookie endpoints.
-
-#### Authentication Module (`src/modules/auth/`)
-- **`src/modules/auth/auth.constants.ts`**: Password policy constants, complexity regex, and error messages.
-- **`src/modules/auth/auth.types.ts`**: Auth TypeScript contracts (`SafeUser`, `AuthTokens`, `LoginResult`, `RefreshResult`).
-- **`src/modules/auth/auth.validator.ts`**: Zod validation schemas for registration and login.
-- **`src/modules/auth/auth.service.ts`**: Complete business logic for registration, login, atomic token rotation, reuse detection, logout, and logout-all.
-- **`src/modules/auth/auth.controller.ts`**: HTTP controllers handling request decoding, cookie management, and standard JSON responses.
-- **`src/modules/auth/auth.routes.ts`**: Route definitions wiring middlewares, rate limiters, and controllers.
-
-#### User Module Additions (`src/modules/users/`)
-- **`src/modules/users/user.validator.ts`**: Zod schemas for updating user profile and changing password.
-- **`src/modules/users/user.service.ts`**: Profile retrieval, field-restricted updates, and password change with session revocation.
-- **`src/modules/users/user.controller.ts`**: HTTP controllers for profile and password operations.
-- **`src/modules/users/user.routes.ts`**: Route definitions for `/api/v1/users/me` and `/api/v1/users/change-password`.
-
-#### Testing & Documentation
-- **`tests/test-helper.ts`**: Test database connection and collection cleanup helpers.
-- **`tests/auth.test.ts`**: 19 automated tests covering registration, login, authentication, profile, and password changes.
-- **`tests/security-session.test.ts`**: 10 automated tests covering rotation, reuse detection, concurrency, logout, CSRF, and role authorization.
-- **`docs/AUTHENTICATION_ARCHITECTURE.md`**: Mermaid sequence diagrams, state machine, and architectural specifications.
-- **`docs/FRONTEND_INTEGRATION.md`**: Dedicated integration guide for frontend engineers, Axios interceptors, and error handling.
-- **`CHANGELOG.md`**: Dated project changelog entry.
-
-### 2. Files Modified
-
-- **`src/modules/users/user.types.ts`**: Added `tokenVersion?: number` to `IUser`.
-- **`src/modules/users/user.model.ts`**: Added `tokenVersion` field (`type: Number, default: 0, select: false`) and sanitized in `toJSON`/`toObject`.
-- **`src/modules/sessions/session.types.ts`**: Added `consumedTokenHashes?: string[]` to `ISession`.
-- **`src/modules/sessions/session.model.ts`**: Added `consumedTokenHashes` field (`type: [String], default: [], select: false`).
-- **`src/config/env.ts`**: Added validated schema for `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, `JWT_ACCESS_EXPIRES_IN`, `JWT_REFRESH_EXPIRES_IN`, `COOKIE_DOMAIN`, `COOKIE_SECURE`, `COOKIE_SAME_SITE`.
-- **`src/app.ts`**: Wired `cookie-parser`, URL-encoded body parser, CORS credentials, auth routes, user routes, and centralized error handler.
-- **`package.json`**: Added runtime dependencies (`bcrypt`, `cookie-parser`, `jsonwebtoken`, `express-rate-limit`), dev dependencies (`@types/bcrypt`, `@types/cookie-parser`, `@types/jsonwebtoken`, `supertest`, `@types/supertest`), and updated test script.
-- **`.env.example`**: Updated with placeholder auth secrets and cookie settings.
-- **`.env`**: Appended local JWT secrets and cookie settings without overwriting existing variables.
-- **`docs/API_CONTRACT.md`**: Documented all Milestone 2 endpoints.
+### Key Implemented Capabilities:
+- **Cloudinary Integration:** Centralized in `src/config/cloudinary.ts` utilizing official Cloudinary SDK v2 with authenticated raw delivery (`resource_type: "raw"`, `type: "authenticated"`).
+- **Multipart Upload Pipeline:** Handled via Multer in-memory storage with an explicit 20 MB size limit (`MAX_UPLOAD_SIZE_BYTES`) and rate limiting (20 uploads / 15 min).
+- **Deep File Validation:** Byte-level signature inspection for PDF (`%PDF-` header and `%%EOF` trailer) and DOCX (ZIP package inspection verifying `[Content_Types].xml`, `word/document.xml`, and WordprocessingML schemas). Arbitrary or disguised ZIP files are rejected.
+- **Decompression Memory Protection:** Enforced 2 MB ceiling (`MAX_DECOMPRESSED_ENTRY_BYTES`) on XML decompression during DOCX validation to prevent zip bomb exhaustion.
+- **Server-Controlled Identifiers:** Server-generated UUID public IDs (`insightflow/documents/${UUID}.${ext}`) preserving file extensions without exposing user filenames.
+- **Data Persistence & Cryptographic Integrity:** Document metadata persisted in MongoDB Atlas `documents` collection with computed SHA-256 binary checksums.
+- **Compensating Rollback:** Automatic deletion of uploaded Cloudinary assets if MongoDB metadata persistence fails, preventing orphaned storage leaks.
+- **Multi-Tenant Ownership:** All listing, retrieval, download, and deletion operations are strictly scoped to the authenticated user ID (`req.user.id`) with soft-delete filtering.
+- **Temporary Signed Downloads:** Generates short-lived (5-minute) authorized bearer download URLs using `cloudinary.utils.private_download_url` with dynamic HMAC-SHA1 signatures and smart extension resolution.
+- **Safe Soft Deletion:** Destroys Cloudinary assets and marks MongoDB document records soft-deleted (`isDeleted: true`, `deletedAt: new Date()`). Repeated deletion requests consistently return 404.
+- **Processing Job Enqueuing:** Schedules a queued `full_processing` job in `processing_jobs` collection upon document creation. Background processing workers belong to Milestone 4.
 
 ---
 
-## C. Database Changes
+## 2. Post-Audit Security Fixes Applied
 
-All modifications preserved existing fields and indexes:
+Following the Milestone 3 independent security audit (CONDITIONAL PASS), two code-level enhancements were implemented and verified:
 
-1. **`users` Collection**:
-   - Added `tokenVersion: { type: Number, default: 0, select: false }`.
-   - Incremented whenever all user sessions are invalidated (password change or `logout-all`).
-   - Enables immediate invalidation of outstanding access tokens.
-2. **`sessions` Collection**:
-   - Added `consumedTokenHashes: { type: [String], default: [], select: false }`.
-   - Stores up to the last 20 rotated refresh-token SHA-256 hashes per session family.
-   - Preserved existing compound and TTL indexes (`{ expiresAt: 1 }` with `expireAfterSeconds: 0`, and `{ userId: 1 }`).
+1. **DOCX Decompression Memory Exhaustion Protection (`src/modules/documents/document.validator.ts`):**
+   - Implemented strict 2 MB output limits (`MAX_DECOMPRESSED_ENTRY_BYTES = 2 * 1024 * 1024`) on `zlib.inflateRawSync` via `{ maxOutputLength: MAX_DECOMPRESSED_ENTRY_BYTES }`.
+   - Pre-checks declared `uncompSize` in ZIP central directory records before attempting decompression.
+   - Enforces supported compression methods (Stored or Deflated) for `[Content_Types].xml`.
+   - Safely catches `ERR_BUFFER_TOO_LARGE` and corrupted streams, returning a controlled 400 validation error without leaking stack traces.
 
----
+2. **Cloudinary Raw Download Duplicate Extension Prevention (`src/services/cloudinary.service.ts`):**
+   - Cloudinary raw assets store extensions as part of the public ID (`insightflow/documents/uuid.pdf`). Passing a redundant `format` parameter to `cloudinary.utils.private_download_url` appends `&format=pdf` to the signed query string, which can cause duplicate extensions (`*.pdf.pdf`) in certain Cloudinary configurations.
+   - Implemented smart format resolution: detects when `publicId` ends with `.${format}` and passes an empty format string `""` to the SDK, preventing duplicate extensions while correctly passing format for public IDs without extensions.
 
-## D. Security Decisions & Implementation Details
-
-1. **Refresh Token Reuse Detection (Token-Family Strategy)**:
-   - Storing solely the active token hash is insufficient to detect replays of older tokens.
-   - When a refresh token is presented, if its hash exists in `consumedTokenHashes`, reuse/theft is diagnosed. The session is immediately revoked (`revokedAt = now`), added to the revoked registry, and logged.
-2. **Atomic Concurrency Handling Without Assuming Distributed Transactions**:
-   - Multi-document transactions require replica set or sharded deployments.
-   - By structuring the rotation as an atomic single-document `findOneAndUpdate` with the exact predicate `{ _id: sessionId, refreshTokenHash: incomingTokenHash, revokedAt: { $exists: false } }`, MongoDB guarantees document-level serializability.
-   - If two requests with the same token arrive simultaneously, only one succeeds; the second receives null, detects the collision, and safely aborts.
-3. **Session Revocation Without Unnecessary MongoDB Queries**:
-   - Implemented a two-tier strategy: User `tokenVersion` for global revocations, and an in-memory TTL `RevokedSessionRegistry` for single-session logouts.
-   - Protects database connection pools while maintaining instant invalidation.
-4. **Email Verification Policy**:
-   - In Milestone 2, email verification email delivery is not yet implemented.
-   - Login policy permits unverified users (`isEmailVerified: false`) to authenticate, exposing their status in `/me`.
-5. **CSRF Protection & Cookie Topology**:
-   - Refresh token cookie is restricted with `HttpOnly: true`, `SameSite: Lax`, and `Path: /api/v1/auth`.
-   - State-changing cookie routes validate that `Origin` or `Referer` matches `FRONTEND_URL` and verify custom headers.
-6. **Timing Attack Protection**:
-   - Failed logins execute a constant-time dummy bcrypt comparison when an email is not found, equalizing execution time and preventing user enumeration.
+3. **Regression Tests Added (`tests/document.test.ts`):**
+   - Added 6 new regression tests covering valid DOCX preservation, truncated DOCX rejection, zip-bomb decompression size limit rejection (>2MB), decompression corruption error handling, PDF download URL extension preservation, and DOCX download URL extension preservation.
 
 ---
 
-## E. Automated Test Results
+## 3. Files Created & Modified
 
-The test suite was executed using Node's test runner (`tsx --test`):
+### A. Files Created (8 files)
+1. **`src/config/cloudinary.ts`**: Centralized Cloudinary SDK configuration, HTTPS enforcement, authenticated delivery settings, and configuration detector.
+2. **`src/services/cloudinary.service.ts`**: Dedicated service for streaming upload, authorized signed URL generation with expiration, and asset deletion.
+3. **`src/modules/documents/document.validator.ts`**: File content validation (PDF magic numbers, DOCX ZIP package and WordprocessingML schemas), filename sanitization, and Zod query/param schemas.
+4. **`src/modules/documents/document.service.ts`**: Business logic for document upload with rollback, paginated listing, details retrieval, signed download URL generation, soft deletion, and processing job creation.
+5. **`src/modules/documents/document.controller.ts`**: Express controller handling HTTP requests and responses for all 5 document endpoints.
+6. **`src/modules/documents/document.routes.ts`**: Express router configuring Multer memory storage, upload rate limiting, authentication, and endpoint routing.
+7. **`tests/document.test.ts`**: Automated test suite covering 34 test cases for upload, validation, listing, download, deletion, rollback, decompression limits, and error handling.
+8. **`docs/CLOUDINARY_STORAGE_ARCHITECTURE.md`**: Complete architectural document describing storage strategy, lifecycles, failure handling, and security.
 
-```
-▶ Milestone 2: Authentication & User API Tests
-  ✔ Registration Endpoint (POST /api/v1/auth/register) (5/5 passed)
-  ✔ Login Endpoint (POST /api/v1/auth/login) (4/4 passed)
-  ✔ Authentication Middleware (3/3 passed)
-  ✔ User Profile Operations (/api/v1/users/me) (3/3 passed)
-  ✔ Change Password Endpoint (POST /api/v1/users/change-password) (4/4 passed)
-✔ Milestone 2: Authentication & User API Tests (19/19 passed)
+### B. Files Modified
+1. **`src/config/env.ts`**: Added Zod validation for `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`, and `MAX_UPLOAD_SIZE_BYTES`.
+2. **`src/modules/documents/document.constants.ts`**: Added `CLOUDINARY: "cloudinary"` to `StorageProvider`.
+3. **`src/modules/documents/document.types.ts`**: Added `CloudinaryAssetMetadata` interface to `DocumentMetadata`.
+4. **`src/middlewares/rate-limit.middleware.ts`**: Added `uploadRateLimiter` (20 uploads per 15 minutes).
+5. **`src/middlewares/error-handler.middleware.ts`**: Added handling for Multer errors (`LIMIT_FILE_SIZE`, `LIMIT_UNEXPECTED_FILE`).
+6. **`src/app.ts`**: Mounted `/api/v1/documents` routes.
+7. **`tests/test-helper.ts`**: Added cleanup for `DocumentModel` and `ProcessingJob` collections.
+8. **`.env.example`**: Added placeholder environment variables for Cloudinary configuration.
+9. **`package.json` & `package-lock.json`**: Added runtime dependencies (`cloudinary`, `multer`) and dev dependency (`@types/multer`).
+10. **`docs/API_CONTRACT.md`**: Documented all 5 new document endpoints with schemas, request formats, response examples, and error states.
+11. **`docs/CLOUDINARY_STORAGE_ARCHITECTURE.md`**: Documented two-phase soft deletion, failure states, and decompression security limits.
+12. **`CHANGELOG.md` & `insightflow-backend/CHANGELOG.md`**: Added Milestone 3 changelog entries.
 
-▶ Milestone 2: Security, Token Reuse & Session Concurrency Tests
-  ✔ Token Rotation and Normal Refresh (2/2 passed)
-  ✔ Refresh Token Reuse Detection (Token Family Strategy) (1/1 passed)
-  ✔ Concurrent Refresh Prevention (Atomic Concurrency Strategy) (1/1 passed)
-  ✔ Logout and Session Invalidation (2/2 passed)
-  ✔ CSRF Protection (2/2 passed)
-  ✔ Role-based Authorization Middleware (2/2 passed)
-✔ Milestone 2: Security, Token Reuse & Session Concurrency Tests (10/10 passed)
-
-Summary:
-- Total Tests: 29
-- Suites: 13
-- Passed: 29
-- Failed: 0
-- Execution Time: ~7.2s
-```
+### C. Dependencies Added
+- `cloudinary` (^2.5.1): Official Cloudinary Node.js SDK.
+- `multer` (^1.4.5-lts.1): Middleware for handling multipart/form-data.
+- `@types/multer` (^1.4.12): TypeScript types for Multer.
 
 ---
 
-## F. Remaining Issues & Next Milestone
+## 4. Database Schema Changes & Technical Justification
 
-- **Remaining Issues:** None. All Milestone 2 requirements are fulfilled with zero known defects.
-- **Next Milestone (Milestone 3):** Document Upload, Processing Pipeline & Storage Management.
+1. **`StorageProvider.CLOUDINARY`**:
+   - **Change:** Added `CLOUDINARY: "cloudinary"` to `StorageProvider` in `src/modules/documents/document.constants.ts`.
+   - **Justification:** The existing Mongoose `DocumentModel` validates `storageProvider` against `STORAGE_PROVIDERS`. Adding `CLOUDINARY` is strictly required to allow documents stored in Cloudinary to satisfy schema validation without altering collection indexes or existing fields.
+2. **Metadata Extensions:**
+   - The existing `DocumentModel` metadata schema uses `{ _id: false, strict: false }`. Cloudinary metadata (`assetId`, `publicId`, `resourceType`, `deliveryType`, `format`, `bytes`, `version`) is stored within `metadata.cloudinary` cleanly without schema migration.
+3. **Processing Job Model Integration:**
+   - On document upload, a job record is enqueued in the existing `processing_jobs` collection with `jobType: "full_processing"` and `status: "queued"`.
+
+---
+
+## 5. Test Verification Results
+
+### Test Execution Summary
+- **Command:** `npm test` (`NODE_ENV=test tsx --test tests/**/*.test.ts`)
+- **Total Test Suites:** **19**
+- **Total Tests:** **63**
+- **Passed Tests:** **63**
+- **Failed Tests:** **0**
+- **Cancelled Tests:** **0**
+- **Execution Time:** ~6.5 seconds
+
+### Detailed Breakdown:
+- **Milestone 2 (Authentication & Security):** 29/29 tests passed across 13 suites.
+  - Registration (5 tests): valid user, email format, password complexity, duplicate prevention, required fields.
+  - Login (4 tests): valid login with HttpOnly cookie, incorrect password, unknown email, suspended account rejection.
+  - Authentication Middleware (3 tests): missing token, malformed token, valid token.
+  - User Profile (3 tests): profile fetch, allowed field updates, restricted field protection.
+  - Password Change (4 tests): incorrect current password, identical new password rejection, password change with session revocation, login verification.
+  - Security & Sessions (10 tests): token rotation, token reuse detection, atomic concurrency, logout, logout-all, CSRF protection, and role authorization.
+- **Milestone 3 (Document Upload & Cloudinary Storage):** 34/34 tests passed across 6 suites.
+  - Core Upload (12 tests): valid PDF, valid DOCX, missing file, unsupported type, corrupted PDF, arbitrary ZIP disguised as DOCX, oversized file (21MB), empty file, unauthenticated upload, Cloudinary upload failure (502), MongoDB persistence failure (500), rollback asset cleanup.
+  - Listing & Retrieval (6 tests): user-isolated document listing, soft-delete exclusion, pagination, owned document details, cross-user access rejection (404), invalid ObjectId rejection (400).
+  - Download (4 tests): temporary download URL generation, cross-user download rejection (404), soft-deleted download rejection (404), Cloudinary URL error handling (500).
+  - Deletion (6 tests): delete owned document, cross-user deletion rejection (404), MongoDB soft deletion verification, Cloudinary asset deletion verification, Cloudinary deletion failure handling (502), repeated deletion handling (404).
+  - Post-Audit Regressions (6 tests): valid DOCX preservation, truncated/malformed DOCX rejection, XML decompression zip-bomb rejection (>2MB limit), decompression stream corruption handling without stack trace leakage, PDF download URL extension preservation without duplicate `&format=pdf`, DOCX download URL extension preservation without duplicate `&format=docx`.
+
+---
+
+## 6. Known Limitations & Architecture Nuances
+
+1. **Live Cloudinary Integration Verification Required:**
+   - Automated tests deliberately mock `cloudinaryService` to avoid billable cloud consumption and guarantee deterministic offline test runs.
+   - Mocked tests do not prove live Cloudinary network upload, download, or asset destruction against production Cloudinary infrastructure.
+   - Live integration must be manually validated by configuring valid Cloudinary credentials in `.env` and uploading sample PDF and DOCX files.
+2. **Distributed Deletion Consistency:**
+   - Distributed deletion across Cloudinary (cloud storage) and MongoDB (metadata database) is non-atomic.
+   - Sequence: Cloudinary asset destruction occurs first; MongoDB soft deletion occurs second.
+   - Failure edge case: If Cloudinary deletion succeeds but the subsequent MongoDB `document.save()` fails (e.g. database network interruption), the document remains active in MongoDB pointing to a non-existent Cloudinary asset.
+   - Self-healing on retry: If the user repeats the deletion, Cloudinary returns `{ result: "not found" }`, which the service treats as success, allowing the MongoDB soft-deletion to complete.
+   - Missing persistent reconciliation queue: In Milestone 3, failed rollback deletions log a `[CRITICAL RECONCILIATION ERROR]` with public IDs, but do not yet persist to a dead-letter or reconciliation table for automated background sweeping.
+3. **Background Processing Pipeline:**
+   - Documents are saved in MongoDB and queued in `processing_jobs`.
+   - Execution workers for text extraction, OCR, chunking, and embedding generation are part of Milestone 4.
+
+---
+
+## 7. Recommended Next Milestone
+
+- **Milestone 4: Document Ingestion & Processing Pipeline**
+  - Implement workers for `processing_jobs`.
+  - Extract text and structural metadata from PDF and DOCX documents.
+  - Implement optical character recognition (OCR) fallback for scanned pages.
+  - Implement semantic text chunking and vector embedding generation.
+
+---
+
+## 8. Milestone 2 Summary Archive
+
+### A. Milestone 2 Deliverables
+- Dual JWT architecture: short-lived access token (~15m) and long-lived refresh token (~7d).
+- Refresh-token reuse detection via a secure token-family strategy with `consumedTokenHashes` tracking.
+- Concurrency-safe atomic database rotation using single-document `findOneAndUpdate` predicates without requiring MongoDB distributed transactions.
+- Instant session revocation via hybrid User `tokenVersion` and in-memory TTL `RevokedSessionRegistry`.
+- Secure HttpOnly cookies with configurable domain, path scoping (`/api/v1/auth`), and SameSite protection.
+- Anti-CSRF origin and header validation for cookie-authenticated endpoints.
+- Current user profile endpoint (`GET /api/v1/users/me`) and controlled profile updates (`PATCH /api/v1/users/me`).
+- Change password flow (`POST /api/v1/users/change-password`) with session revocation.
+- Comprehensive automated test suite passing 29/29 tests across 13 test suites with 0 failures.
+
+### B. Milestone 2 Database Changes
+- **`users` Collection**: Added `tokenVersion: { type: Number, default: 0, select: false }`.
+- **`sessions` Collection**: Added `consumedTokenHashes: { type: [String], default: [], select: false }`.
